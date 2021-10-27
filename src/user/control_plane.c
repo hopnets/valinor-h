@@ -8,6 +8,7 @@
 #include <linux/bpf.h>
 
 #include <bpf/libbpf.h>
+#include <bpf/bpf.h>
 
 #include "log.h"
 

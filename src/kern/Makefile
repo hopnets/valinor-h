@@ -6,7 +6,7 @@ DEV=enp65s0f0np0
 CLANG_INCLUDES := $(shell clang -v -E - < /dev/null 2>&1 \
 	| sed -n '/^\#include <...> search starts here:$$/,/^End of search list\.$$/ s/^ \+/-idirafter /p')
 bpf.o: bpf.c
-	clang -O2 -target bpf $(CLANG_INCLUDES) -c $< -o $@
+	clang-10 -O2 -target bpf $(CLANG_INCLUDES) -c $< -o $@
 
 run: bpf.o
 	tc qdisc replace dev $(DEV) clsact
