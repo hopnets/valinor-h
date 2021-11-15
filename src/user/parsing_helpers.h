@@ -308,7 +308,7 @@ static __always_inline int parse_tcphdr(struct hdr_cursor *nh,
 	if(len < sizeof(*h))
 		return -1;
 
-	bpf_printk("tcphdrlen=%d", len);
+	// bpf_printk("tcphdrlen=%d", len);
 
 	/* Variable-length TCP header, need to use byte-based arithmetic */
 	if (nh->pos + len > data_end)
@@ -331,7 +331,7 @@ static __always_inline __u32 parse_vhdr(struct hdr_cursor *nh,
 	struct vhdr *h = nh->pos;
 
 	if (h + 1 > data_end){
-        bpf_printk("failed to parse vhdr");
+        // bpf_printk("failed to parse vhdr");
         return -1;
     }
 		// return -1;
@@ -339,7 +339,7 @@ static __always_inline __u32 parse_vhdr(struct hdr_cursor *nh,
 	nh->pos  = h + 1;
 	*vheader = h;
 
-    bpf_printk("success vhdr");
+    // bpf_printk("success vhdr");
 
 	datalen = bpf_ntohl(h->datalen) - sizeof(struct vhdr);
 	if (datalen < 0) {

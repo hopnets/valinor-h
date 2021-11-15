@@ -12,11 +12,13 @@ INC = -I$(KDIR)/tools/testing/selftests/bpf \
 CLANG_INCLUDES := $(shell clang -v -E - < /dev/null 2>&1 \
 	| sed -n '/^\#include <...> search starts here:$$/,/^End of search list\.$$/ s/^ \+/-idirafter /p')
 bpf.o: bpf.c
-	clang-10 -O2 -target bpf $(CLANG_INCLUDES) -c $< -o $@
+	rm -rf bpf.o
+	clang-10 -O2 -g -target bpf $(CLANG_INCLUDES) -c $< -o $@
 
 
 
 control_plane.o: control_plane.c
+	rm -rf control_plane control_plane.o
 	gcc -c $< -o $@ $(INC) $(TOOLS)/lib/bpf/libbpf.a -lelf -lz
 
 log.o: log.c
@@ -27,10 +29,11 @@ control_plane: $(OBJS)
 
 
 run: bpf.o
-	tc qdisc replace dev $(DEV) clsact
+	LD_LIBRARY_PATH=/lib/modules/5.15.0/source/tools/lib/bpf/ tc qdisc replace dev $(DEV) clsact
 # tc filter replace dev $(DEV) ingress prio 1 handle 1 bpf da obj $< sec ingress
-	tc filter replace dev $(DEV) egress prio 1 handle 1 bpf da obj $< sec egress
+	LD_LIBRARY_PATH=/lib/modules/5.15.0/source/tools/lib/bpf/ tc filter replace dev $(DEV) egress prio 1 handle 1 bpf da obj $< sec egress
 
 clean:
-	tc filter del dev $(DEV) ingress
-	tc filter del dev $(DEV) egress
+	LD_LIBRARY_PATH=/lib/modules/5.15.0/source/tools/lib/bpf/ tc filter del dev $(DEV) ingress
+	LD_LIBRARY_PATH=/lib/modules/5.15.0/source/tools/lib/bpf/ tc filter del dev $(DEV) egress
+	rm -rf *.o

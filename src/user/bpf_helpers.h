@@ -144,16 +144,51 @@ struct bpf_map_def {
         unsigned int map_flags;
 };
 
+#ifndef __BPF_FUNC
+# define __BPF_FUNC(NAME, ...)						\
+	(* NAME)(__VA_ARGS__) __maybe_unused
+#endif
+
+#ifndef BPF_FUNC
+# define BPF_FUNC(NAME, ...)						\
+	__BPF_FUNC(NAME, __VA_ARGS__) = (void *) BPF_FUNC_##NAME
+#endif
+
+static void *BPF_FUNC(map_lookup_elem, void *map, const void *key);
+
+
+#define __uint(name, val) int (*name)[val]
+#define __type(name, val) typeof(val) *name
+#define __array(name, val) typeof(val) *name[]
+
 enum libbpf_pin_type {
-        LIBBPF_PIN_NONE,
-        /* PIN_BY_NAME: pin maps by name (in /sys/fs/bpf by default) */
-        LIBBPF_PIN_BY_NAME,
+	LIBBPF_PIN_NONE,
+	/* PIN_BY_NAME: pin maps by name (in /sys/fs/bpf by default) */
+	LIBBPF_PIN_BY_NAME,
 };
 
 enum libbpf_tristate {
         TRI_NO = 0,
         TRI_YES = 1,
         TRI_MODULE = 2,
+};
+
+/* Object pinning settings */
+#define PIN_NONE       0
+#define PIN_OBJECT_NS  1
+#define PIN_GLOBAL_NS  2
+
+/* ELF map definition */
+struct bpf_elf_map {
+__u32 type;
+__u32 size_key;
+__u32 size_value;
+__u32 max_elem;
+__u32 flags;
+__u32 id;
+__u32 pinning;
+__u32 inner_id;
+__u32 inner_idx;
 };
 
 #define __kconfig __attribute__((section(".kconfig")))
