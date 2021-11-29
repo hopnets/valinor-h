@@ -12,7 +12,7 @@
 #define TC_ACT_OK       0
 #define TC_ACT_SHOT     2
 
-#define MAP_MAX_ENTRIES	1 << 16
+#define MAP_MAX_ENTRIES	1 << 24
 
 // struct bpf_elf_map SEC("maps") flow_map = {
 // 	.type           =       BPF_MAP_TYPE_ARRAY,
@@ -22,6 +22,11 @@
 // 	.max_elem       =       256,
 // 	.pinning        =       PIN_OBJECT_NS,
 // };
+
+struct data_entry {
+	__u64	ts;
+	__u64	length;
+};
 
 struct ebpf_ts_map_def {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
@@ -34,7 +39,7 @@ struct ebpf_ts_map_def {
 struct ebpf_idx_map_def {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
 	__uint(key_size, sizeof(__u32));
-	__uint(value_size, sizeof(__u64));
+	__uint(value_size, sizeof(struct data_entry));
 	__uint(max_entries, MAP_MAX_ENTRIES);
 	__uint(pinning, LIBBPF_PIN_BY_NAME);	/* or LIBBPF_PIN_NONE */
 } ts_map __section(".maps");
@@ -68,6 +73,7 @@ int _egress(struct __sk_buff *skb)
 	struct tcphdr *tcphdr;
 	struct udphdr *udphdr;
     struct vhdr *v_header;
+	struct data_entry	value;
 	__u32 *write_ptr;
 	__u64 timestamp;
 	__u32 write_ptr_index = 0;
@@ -115,12 +121,21 @@ int _egress(struct __sk_buff *skb)
 		printt("Error accessing the index pointer. Exitting ...");
 		goto out;
 	}
-	lock_xadd(write_ptr, 1);
+	if(*write_ptr == MAP_MAX_ENTRIES-1){
+		*write_ptr = 0;
+		printt("resetting the ptr");
+		ret = map_update_elem((void *)&idx_map, &write_ptr_index, write_ptr, 0);
+		if (ret < 0)
+			printt("failed to reset write_ptr to %lu", *write_ptr);
+	} else
+		lock_xadd(write_ptr, 1);
 
-	ret = map_update_elem((void *)&ts_map, write_ptr, &timestamp, 0);
+	value.ts = timestamp;
+	value.length = skb->len;
+	ret = map_update_elem((void *)&ts_map, write_ptr, &value, 0);
 	if (ret < 0)
 		printt("failed to update %lu", *write_ptr);
-	printt("updated %lu", *write_ptr);
+	// printt("updated %lu", *write_ptr);
 
  out:
     // printt("out: %llu", timestamp);
