@@ -81,7 +81,7 @@ int _egress(struct __sk_buff *skb)
     }
 
     // timestamp
-    bpf_printk("timestamping %x", bpf_ntohl(v_header->id));
+    // bpf_printk("timestamping %x", bpf_ntohl(v_header->id));
     v_header->t[0] = bpf_cpu_to_be64(0xABCDABCD12345678);
     // v_header->t[3] = bpf_cpu_to_be64(0xABCDABCD12345678);
     // v_header->t[4] = bpf_cpu_to_be64(0xABCDABCD12345678);

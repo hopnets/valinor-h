@@ -78,64 +78,64 @@ int _egress(struct __sk_buff *skb)
 	__u64 timestamp;
 	__u32 write_ptr_index = 0;
 
-	timestamp = ktime_get_ns();
-	nh.pos = data;
+	// timestamp = ktime_get_ns();
+	// nh.pos = data;
 
 
-	eth_type = parse_ethhdr(&nh, data_end, &eth);
-	if (eth_type == bpf_htons(ETH_P_IP)) {
-		ip_type = parse_iphdr(&nh, data_end, &iphdr);
-	}
-	else if (eth_type == bpf_htons(ETH_P_IPV6)) {
-		ip_type = parse_ip6hdr(&nh, data_end, &ipv6hdr);
-	} else {
-        printt("Not Ipproto");
-		goto out;
-	}
+	// eth_type = parse_ethhdr(&nh, data_end, &eth);
+	// if (eth_type == bpf_htons(ETH_P_IP)) {
+	// 	ip_type = parse_iphdr(&nh, data_end, &iphdr);
+	// }
+	// else if (eth_type == bpf_htons(ETH_P_IPV6)) {
+	// 	ip_type = parse_ip6hdr(&nh, data_end, &ipv6hdr);
+	// } else {
+    //     printt("Not Ipproto");
+	// 	goto out;
+	// }
 
-	if(ip_type == IPPROTO_TCP) {
-		tcp_type = parse_tcphdr(&nh, data_end, &tcphdr);
-		if (tcphdr + 1 > data_end) {
-			printt("TCP err");
-			goto out;
-		}
-	}
-	else if(ip_type == IPPROTO_UDP) {
-		udp_type = parse_udphdr(&nh, data_end, &udphdr);
-		if (udphdr + 1 > data_end) {
-			printt("UDP err");
-			goto out;
-		}
-	}
-	else {
-		printt("Not supported transport protocol");
-		goto out;
-	}
+	// if(ip_type == IPPROTO_TCP) {
+	// 	tcp_type = parse_tcphdr(&nh, data_end, &tcphdr);
+	// 	if (tcphdr + 1 > data_end) {
+	// 		printt("TCP err");
+	// 		goto out;
+	// 	}
+	// }
+	// else if(ip_type == IPPROTO_UDP) {
+	// 	udp_type = parse_udphdr(&nh, data_end, &udphdr);
+	// 	if (udphdr + 1 > data_end) {
+	// 		printt("UDP err");
+	// 		goto out;
+	// 	}
+	// }
+	// else {
+	// 	printt("Not supported transport protocol");
+	// 	goto out;
+	// }
+	
 
-	if(nh.pos + sizeof(struct vhdr) > data_end) {
-		printt("valid check!");
+	// if(nh.pos + sizeof(struct vhdr) > data_end) {
+	// 	printt("valid check!");
 
-	}
-	write_ptr = map_lookup_elem((void *)&idx_map, &write_ptr_index);
-	if (!write_ptr) {
-		printt("Error accessing the index pointer. Exitting ...");
-		goto out;
-	}
-	if(*write_ptr == MAP_MAX_ENTRIES-1){
-		*write_ptr = 0;
-		printt("resetting the ptr");
-		ret = map_update_elem((void *)&idx_map, &write_ptr_index, write_ptr, 0);
-		if (ret < 0)
-			printt("failed to reset write_ptr to %lu", *write_ptr);
-	} else
-		lock_xadd(write_ptr, 1);
+	// }
+	// write_ptr = map_lookup_elem((void *)&idx_map, &write_ptr_index);
+	// if (!write_ptr) {
+	// 	printt("Error accessing the index pointer. Exitting ...");
+	// 	goto out;
+	// }
+	// if(*write_ptr == MAP_MAX_ENTRIES-1){
+	// 	*write_ptr = 0;
+	// 	printt("resetting the ptr");
+	// 	ret = map_update_elem((void *)&idx_map, &write_ptr_index, write_ptr, 0);
+	// 	if (ret < 0)
+	// 		printt("failed to reset write_ptr to %lu", *write_ptr);
+	// } else
+	// 	lock_xadd(write_ptr, 1);
 
-	value.ts = timestamp;
-	value.length = skb->len;
-	ret = map_update_elem((void *)&ts_map, write_ptr, &value, 0);
-	if (ret < 0)
-		printt("failed to update %lu", *write_ptr);
-	// printt("updated %lu", *write_ptr);
+	// value.ts = timestamp;
+	// value.length = skb->len;
+	// ret = map_update_elem((void *)&ts_map, write_ptr, &value, 0);
+	// if (ret < 0)
+	// 	printt("failed to update %lu", *write_ptr);
 
  out:
     // printt("out: %llu", timestamp);

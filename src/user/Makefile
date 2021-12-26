@@ -4,6 +4,8 @@ OBJS= control_plane.o log.o
 
 KDIR ?= /lib/modules/$(shell uname -r)/source
 
+TC = /mydata/iproute2/tc/tc
+
 TOOLS:= $(KDIR)/tools
 INC = -I$(KDIR)/tools/testing/selftests/bpf \
       -I$(KDIR)/tools/lib \
@@ -29,11 +31,13 @@ control_plane: $(OBJS)
 
 
 run: bpf.o
-	LD_LIBRARY_PATH=/lib/modules/5.15.2/source/tools/lib/bpf/ tc qdisc replace dev $(DEV) clsact
+	LD_LIBRARY_PATH=/lib/modules/5.15.2/source/tools/lib/bpf/ $(TC) qdisc replace dev $(DEV) clsact
 # tc filter replace dev $(DEV) ingress prio 1 handle 1 bpf da obj $< sec ingress
-	LD_LIBRARY_PATH=/lib/modules/5.15.2/source/tools/lib/bpf/ tc filter replace dev $(DEV) egress prio 1 handle 1 bpf da obj $< sec egress
+	LD_LIBRARY_PATH=/lib/modules/5.15.2/source/tools/lib/bpf/ $(TC) filter replace dev $(DEV) egress prio 1 handle 1 bpf da obj $< sec egress
 
-clean:
-	LD_LIBRARY_PATH=/lib/modules/5.15.2/source/tools/lib/bpf/ tc filter del dev $(DEV) ingress
-	LD_LIBRARY_PATH=/lib/modules/5.15.2/source/tools/lib/bpf/ tc filter del dev $(DEV) egress
+stop:
+	LD_LIBRARY_PATH=/lib/modules/5.15.2/source/tools/lib/bpf/ $(TC) filter del dev $(DEV) ingress
+	LD_LIBRARY_PATH=/lib/modules/5.15.2/source/tools/lib/bpf/ $(TC) filter del dev $(DEV) egress
+
+clean:	stop
 	rm -rf *.o
