@@ -1,0 +1,12 @@
+[submodule "src/user/ext/hiredis"]
+	path = src/user/ext/hiredis
+	url = https://github.com/redis/hiredis.git
+[submodule "src/sd/ext/iproute2"]
+	path = src/sd/ext/iproute2
+	url = https://github.com/shemminger/iproute2
+[submodule "src/sd/ext/libbpf"]
+	path = src/sd/ext/libbpf
+	url = https://github.com/libbpf/libbpf
+[submodule "src/sd/ext/hiredis"]
+	path = src/sd/ext/hiredis
+	url = https://github.com/redis/hiredis
