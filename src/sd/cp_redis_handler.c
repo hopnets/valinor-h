@@ -7,6 +7,12 @@
 #include <inttypes.h>
 #include "cp_redis_handler.h"
 
+static unsigned int min(unsigned int a, unsigned int b)
+{
+    if (a > b)
+        return b;
+    return a;
+}
 
 redisContext *initialize_redis()
 {
@@ -18,7 +24,7 @@ redisContext *initialize_redis()
         log_error("Redis error: %s", rc->errstr);
         return NULL;
     }
-	log_info("Connected to Redis %d", rc->fd);
+	log_info("Connected to Redis");
     return rc;
 }
 

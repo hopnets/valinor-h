@@ -26,6 +26,7 @@
 #include "hiredis/adapters/libevent.h"
 
 #define BATCH_SIZE  32u
+#define _GNU_SOURCE
 
 struct data_entry {
 	__u64   ts;
@@ -45,16 +46,10 @@ struct app_context {
     __u32 redis_key;
     __u32 total_entries;
     __u32 nr_cpus;
+    __u64 capture_duration;
 	redisContext *context;
     struct data_entry *collected_entries;
 };
-
-unsigned int min(unsigned int a, unsigned int b)
-{
-    if (a > b)
-        return b;
-    return a;
-}
 
 redisContext* initialize_redis();
 int flush_to_redis(redisContext *c, int count);

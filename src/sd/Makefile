@@ -1,10 +1,10 @@
-DEV=enp65s0f0np0
+DEV=enp5s0f0
 
 OBJS= control_plane.o log.o cp_redis_handler.o
 
-KDIR ?= /mydata/libbpf
+KDIR ?= /home/erfan/vebpf/src/sd/ext/libbpf
 
-TC = /mydata/iproute2/tc/tc
+TC = /home/erfan/vebpf/src/sd/ext/iproute2/tc/tc
 
 CP_FLAGS = -lelf -lz -lhiredis -levent -pthread -DLOG_USE_COLOR
 
@@ -25,9 +25,17 @@ control_plane.o: control_plane.c
 	gcc -c $< -o $@ $(INC) $(TOOLS)/src/libbpf.a $(CP_FLAGS)
 
 log.o: log.c
-	gcc -c $< -o $@
+	gcc -c $< -o $@ -DLOG_USE_COLOR
 
 control_plane: $(OBJS)
+	gcc $^ -o $@ $(INC) $(TOOLS)/src/libbpf.a $(CP_FLAGS)
+
+
+debug_write_indices.o: debug_write_indices.c
+	rm -rf debug_write_indices debug_write_indices.o
+	gcc -c $< -o $@ $(INC) $(TOOLS)/src/libbpf.a $(CP_FLAGS)
+
+debug_write_indices: debug_write_indices.o log.o
 	gcc $^ -o $@ $(INC) $(TOOLS)/src/libbpf.a $(CP_FLAGS)
 
 
@@ -36,7 +44,7 @@ run: bpf.o
 	rm -f /sys/fs/bpf/tc/globals/idx_map
 	$(TC) qdisc replace dev $(DEV) clsact
 	$(TC) filter replace dev $(DEV) egress prio 1 handle 1 bpf da obj $< sec egress
-	./control_plane $(KEY)
+	./control_plane $(KEY) $(DURATION)
 
 filter: bpf.o
 	rm -f /sys/fs/bpf/tc/globals/ts_map
@@ -51,3 +59,6 @@ stop:
 clean:	stop
 	rm -rf *.o
 	rm control_plane
+
+debug_ind:
+	./debug_write_indices

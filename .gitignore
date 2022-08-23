@@ -51,4 +51,8 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+debug_write_indices
+control_plane
+
+libbpf/*
 .vscode/

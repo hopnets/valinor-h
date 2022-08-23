@@ -3,10 +3,12 @@
 #define TS_ARRAY "/sys/fs/bpf/tc/globals/ts_map"
 #define TS_IDX "/sys/fs/bpf/tc/globals/idx_map"
 #define STATS "/sys/fs/bpf/tc/globals/stat_map"
+#define ENABLE "/sys/fs/bpf/tc/globals/enb_map"
 #define IFINDEX 4
 #define LOG_BUFFER_SIZE 1024 * 1024
 #define NRCPUS  64
 #define MAP_MAX_SIZE 1 << 24
+#define THREAD_WARMUP_TIME 1
 enum { NS_PER_SECOND = 1000000000 };
 
 
@@ -41,34 +43,48 @@ void retrieve_and_print_stats(int stats_fd)
         log_error("STATS: bpf_map_lookup_elem failed, %d", ret);
         return;
     }
-    log_info("DATAPLANE STATS:\nSUCCESSFUL CALLS: %d, FAILED CALLS: %d", successful, failed);
+    log_info("=============================\nFINAL DATAPLANE STATS:\nSUCCESSFUL CALLS: %d, FAILED CALLS: %d", successful, failed);
+}
+
+void retrieve_and_print_stats_brief(int stats_fd, int *prev_calls)
+{
+    int ret, successful, failed, rate = 0;
+    ret = bpf_map_lookup_elem(stats_fd, &stats_success, &successful);
+    if (ret)
+    {
+        return;
+    }
+    ret = bpf_map_lookup_elem(stats_fd, &stats_fail, &failed);
+    if (ret)
+    {
+        return;
+    }
+    log_fatal("DATAPLANE STATS: SUCCESSFUL CALLS: %d, FAILED CALLS: %d, CALL/S: %d", successful, failed, (successful+failed) - *prev_calls);
+    *prev_calls = successful + failed;
 }
 
 void *thread_poll(void *args)
 {
     struct data_entry values[NRCPUS];
     struct timespec start;
-    u_int64_t prev_value, prev_key = 0;
+    __u64 start_time, current_time, prev_value, prev_key = 0;
     struct app_context *app = (struct app_context *) args;
     int ret;
     int array_fd = -1;
     int idx_fd = -1;
     int stats_fd = -1;
+    int working = 1, capture = 1;
     __u32 read_index = 1;
     const unsigned int map_index = 0;
-    const unsigned int map_index_value = 0;
+    // const __u32 map_idle_value[NRCPUS] = {-1}, map_capture_value[NRCPUS] = {1};
     redisContext *context;
-        
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    prev_value = start.tv_sec * NS_PER_SECOND + start.tv_nsec;
-    log_info("Thread (%u): Current timestamp is %lu", app->tid, prev_value);
 
     // values = (struct data_entry *) malloc(app->nr_cpus * sizeof(struct data_entry));
 
     array_fd = bpf_obj_get(TS_ARRAY);
     if (array_fd < 0)
     {
-        log_fatal("Thread (%u): bpf_obj_get(%s): %s(%d)\n", app->tid,
+        log_error("Thread (%u): bpf_obj_get(%s): %s(%d)\n", app->tid,
                   TS_ARRAY, strerror(errno), errno);
         goto thread_out;
     }
@@ -76,21 +92,21 @@ void *thread_poll(void *args)
     idx_fd = bpf_obj_get(TS_IDX);
     if (idx_fd < 0)
     {
-        log_fatal("Thread (%u): bpf_obj_get(%s): %s(%d)\n", app->tid,
+        log_error("Thread (%u): bpf_obj_get(%s): %s(%d)\n", app->tid,
                   TS_IDX, strerror(errno), errno);
         goto thread_out;
     }
-    log_info("Thread (%u): Connected to index store. Initializing", app->tid);
-    ret = bpf_map_update_elem(idx_fd, &map_index, &map_index_value, 0);
-    if (ret)
-    {
-        log_error("Thread (%u): bpf_map_update_elem failed, %d", app->tid, ret);
-        goto thread_out;
-    }
+    // log_info("Thread (%u): Connected to index store. Initializing", app->tid);
+    // ret = bpf_map_update_elem(idx_fd, &map_index, &map_idle_value, 0);
+    // if (ret)
+    // {
+    //     log_error("Thread (%u): bpf_map_update_elem failed, %d", app->tid, ret);
+    //     goto thread_out;
+    // }
     stats_fd = bpf_obj_get(STATS);
     if (stats_fd < 0)
     {
-        log_fatal("Thread (%u): bpf_obj_get(%s): %s(%d)\n", app->tid,
+        log_error("Thread (%u): bpf_obj_get(%s): %s(%d)\n", app->tid,
                   STATS, strerror(errno), errno);
         goto thread_out;
     }
@@ -103,12 +119,18 @@ void *thread_poll(void *args)
         goto thread_out;
     }
 
-
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    start_time = start.tv_sec * NS_PER_SECOND + start.tv_nsec;
+    log_info("Thread (%u): Current timestamp is %lu", app->tid, prev_value);
+    prev_value = start_time;
+    // if(app->capture_duration)
+    // {
+    //     sleep(app->capture_duration+2);
+    // }
     log_info("Thread (%u): Starting poller ...", app->tid);
-    while (running)
+    while (running || working)
     {
 
-        /* bpf_tunnel_key.remote_ipv4 expects host byte orders */
         ret = bpf_map_lookup_elem(array_fd, &read_index, values);
         if (ret)
         {
@@ -129,8 +151,11 @@ void *thread_poll(void *args)
                     read_index = 0;
                     break;  // fixme
                 }
+                working = 1;
             // }
         }
+        else
+            working = 0;
         
     }
 
@@ -149,8 +174,16 @@ int main(int argc, char **argv)
     int redis_key = 0;
     int *thread_return;
     int stats_fd = -1;
+    int idx_fd = -1;
+    int enb_fd = -1;
     int stats_initial_value = 0;
     int total_entries = 0, total_commands = 0;
+    int prev_calls = 0;
+    __u64  capture_duration = 0;
+    struct timespec start;
+    __u64 start_time, current_time = 0;
+    const unsigned int map_index = 0;
+    const unsigned int map_idle_value = 0, map_capture_value = 1;
 
     unsigned int nr_cpus = libbpf_num_possible_cpus();
     pthread_t *thread_ids;
@@ -160,10 +193,15 @@ int main(int argc, char **argv)
 
     // nr_cpus = 1;
 
-    if (argc > 2)
+    if (argc > 3)
     {
         log_error("Too many arguments.");
         goto out;
+    }
+    else if (argc == 3)
+    {
+        redis_key = atoi(argv[1]);
+        capture_duration = atoi(argv[2]);
     }
     else if (argc == 2)
     {
@@ -177,13 +215,17 @@ int main(int argc, char **argv)
 
     log_info("Valinor: High-resolution traffic measurement framework");
     log_info("Redis key set to %u", redis_key);
+    if(capture_duration)
+        log_info("Capture duration set to %llus", capture_duration);
+    else
+        log_info("Capture duration is unlimited");
     log_info("Number of CPUs: %u", nr_cpus);
     signal(SIGINT, graceful_exit); // Register signal handler
     // bpf_object__find_program_by_name(&obj, "bpf");
     stats_fd = bpf_obj_get(STATS);
     if (stats_fd < 0)
     {
-        log_fatal("Thread (Main): bpf_obj_get(%s): %s(%d)\n",
+        log_error("Thread (Main): bpf_obj_get(%s): %s(%d)\n",
                   STATS, strerror(errno), errno);
         goto out;
     }
@@ -201,6 +243,24 @@ int main(int argc, char **argv)
         goto out;
     }
 
+    idx_fd = bpf_obj_get(TS_IDX);
+    if (idx_fd < 0)
+    {
+        log_error("Thread (Main): bpf_obj_get(%s): %s(%d)\n",
+                  TS_IDX, strerror(errno), errno);
+        goto out;
+    }
+    log_info("Thread (Main): Connected to index store.");
+
+    enb_fd = bpf_obj_get(ENABLE);
+    if (enb_fd < 0)
+    {
+        log_error("Thread (Main): bpf_obj_get(%s): %s(%d)\n",
+                  ENABLE, strerror(errno), errno);
+        goto out;
+    }
+    log_info("Thread (Main): Connected to enable store. ");
+
     // log_info("Attempting to load the eBPF kernel ...");
 
     for(i=0;i<nr_cpus;i++)
@@ -209,6 +269,7 @@ int main(int argc, char **argv)
         app_contexts[i].redis_key = redis_key;
         app_contexts[i].total_entries = 0;
         app_contexts[i].nr_cpus = nr_cpus;
+        app_contexts[i].capture_duration = capture_duration;
         ret = pthread_attr_init(&thread_attrs[i]);
         if(ret < 0)
         {
@@ -222,6 +283,38 @@ int main(int argc, char **argv)
             goto out;
         }
 
+    }
+    log_info("Thread (Main): Starting capture.");
+    ret = bpf_map_update_elem(enb_fd, &map_index, &map_capture_value, 0);
+    if (ret)
+    {
+        log_error("Thread (Main): bpf_map_update_elem 1 failed, %d", ret);
+    }
+    if(capture_duration){
+        capture_duration += THREAD_WARMUP_TIME;
+        capture_duration *= NS_PER_SECOND;
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        start_time = start.tv_sec * NS_PER_SECOND + start.tv_nsec;
+    }
+
+    while(running)
+    {
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        current_time = start.tv_sec * NS_PER_SECOND + start.tv_nsec;
+        if(capture_duration && current_time - start_time >= capture_duration)
+        {
+            log_info("Thread (Main): Stopping capture.");
+            ret = bpf_map_update_elem(enb_fd, &map_index, &map_idle_value, 0);
+            if (ret)
+            {
+                log_error("Thread (Main): bpf_map_update_elem 0 <stop> failed, %d", ret);
+            }
+            capture_duration = 0;
+            running = 0;
+        }
+
+        retrieve_and_print_stats_brief(stats_fd, &prev_calls);
+        sleep(1);
     }
     for(i=0;i<nr_cpus;i++)
     {
