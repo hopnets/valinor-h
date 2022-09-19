@@ -137,7 +137,7 @@ void *thread_poll(void *args)
             log_error("Thread (%u): bpf_map_lookup_elem failed, %d", app->tid, ret);
             break;
         }
-        if (values[app->tid].key != 0)
+        if (values[app->tid].ts != 0)
         {
             // if(value.ts != prev_value || value.key != prev_key){    // we haven't read this value before!
                 // log_info("Thread %u: retrieved value: lng=%lx, tst=%x, key=%x", app->tid, values[app->tid].ts, values[app->tid].ts, values[app->tid].key);
