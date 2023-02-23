@@ -14,8 +14,8 @@ INC = -I$(KDIR)/lib \
 
 CLANG_INCLUDES := $(shell clang-10 -v -E - < /dev/null 2>&1 \
 	| sed -n '/^\#include <...> search starts here:$$/,/^End of search list\.$$/ s/^ \+/-idirafter /p')
-bpf.o: bpf.c
-	rm -rf bpf.o
+data_plane.o: data_plane.c
+	rm -rf data_plane.o
 	clang-10 -O2 -g -target bpf $(CLANG_INCLUDES) -c $< -o $@
 
 
@@ -39,14 +39,14 @@ debug_write_indices: debug_write_indices.o log.o
 	gcc $^ -o $@ $(INC) $(TOOLS)/src/libbpf.a $(CP_FLAGS)
 
 
-run: bpf.o
+run: data_plane.o
 	rm -f /sys/fs/bpf/tc/globals/ts_map
 	rm -f /sys/fs/bpf/tc/globals/idx_map
 	$(TC) qdisc replace dev $(DEV) clsact
 	$(TC) filter replace dev $(DEV) egress prio 1 handle 1 bpf da obj $< sec egress
 	./control_plane $(KEY) $(DURATION)
 
-filter: bpf.o
+filter: data_plane.o
 	rm -f /sys/fs/bpf/tc/globals/ts_map
 	rm -f /sys/fs/bpf/tc/globals/idx_map
 	$(TC) qdisc replace dev $(DEV) clsact

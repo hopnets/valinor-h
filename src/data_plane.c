@@ -15,19 +15,6 @@
 
 #define MAP_MAX_ENTRIES	1 << 24
 
-// struct bpf_elf_map SEC("maps") flow_map = {
-// 	.type           =       BPF_MAP_TYPE_ARRAY,
-// 	.id             =       1,
-// 	.size_key       =       sizeof(__u32),
-// 	.size_value     =       sizeof(__u64),
-// 	.max_elem       =       256,
-// 	.pinning        =       PIN_OBJECT_NS,
-// };
-
-// struct data_entry {
-// 	__u64	ts;
-// 	__u64	length;
-// };
 struct data_entry {
 	__u64   ts;
     __u32   saddr;
@@ -71,18 +58,6 @@ struct ebpf_enb_map_def {
 	__uint(pinning, LIBBPF_PIN_BY_NAME);	/* or LIBBPF_PIN_NONE */
 } enb_map __section(".maps");
 
-// __section("egress")
-// int emain(struct __sk_buff *skb)
-// {
-// 	int key = 0, *val;
-
-// 	val = map_lookup_elem(&map_sh, &key);
-// 	if (val)
-// 		lock_xadd(val, 1);
-
-// 	return BPF_H_DEFAULT;
-// }
-
 __section("egress")
 int _egress(struct __sk_buff *skb)
 {
@@ -109,38 +84,6 @@ int _egress(struct __sk_buff *skb)
 	timestamp = ktime_get_ns();
 	nh.pos = data;
 
-
-	// eth_type = parse_ethhdr(&nh, data_end, &eth);
-	// if (eth_type == bpf_htons(ETH_P_IP)) {
-	// 	ip_type = parse_iphdr(&nh, data_end, &iphdr);
-	// }
-	// else if (eth_type == bpf_htons(ETH_P_IPV6)) {
-	// 	ip_type = parse_ip6hdr(&nh, data_end, &ipv6hdr);
-	// } else {
-    //     // printt("Not Ipproto");
-	// 	goto out_f;
-	// }
-
-	// if(ip_type == IPPROTO_TCP) {
-	// 	tcp_type = parse_tcphdr(&nh, data_end, &tcphdr);
-	// 	if (tcphdr + 1 > data_end) {
-	// 		// printt("TCP err");
-	// 		goto out_f;
-	// 	}
-	// 	window = bpf_ntohs(tcphdr->window);
-	// }
-	// else if(ip_type == IPPROTO_UDP) {
-	// 	udp_type = parse_udphdr(&nh, data_end, &udphdr);
-	// 	if (udphdr + 1 > data_end) {
-	// 		// printt("UDP err");
-	// 		goto out_f;
-	// 	}
-	// }
-	
-
-	// if(nh.pos + sizeof(struct vhdr) > data_end) {
-	// 	printt("valid check!");
-	// }
 
 	enb_ptr = map_lookup_elem((void *)&enb_map, &write_ptr_index);
 	if (!enb_ptr) {
